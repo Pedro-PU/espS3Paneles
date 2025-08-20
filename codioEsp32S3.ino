@@ -23,10 +23,19 @@ const int CSalidaPin01 = 5;
 const int VBateriaPin01 = 6;
 const int VPaneles01 = 7;
 const int VSalida01 = 15;
+
 const int CSalidaPin02 = 16;
 const int VBateriaPin02 = 8;
 const int VPaneles02 = 3;
 const int VSalida02 = 9;
+
+const int bomba01 = 38;
+const int bomba02 = 37;
+const int temp01 = 10;
+
+const int bomba03 = 36;
+const int bomba04 = 35;
+const int temp02 = 11;
 
 // -------------------- Variables globales Panel01 --------------------
 int mCSalida01 = 0;
@@ -40,6 +49,14 @@ int mVBateria02 = 0;
 int mVPaneles02 = 0;
 int mVSalida02 = 0;
 
+// -------------------- Variables globales Bombas y Temp --------------------
+bool mBomba01 = false;
+bool mBomba02 = false;
+bool mBomba03 = false;
+bool mBomba04 = false;
+int mTemp01 = 0;
+int mTemp02 = 0;
+
 // -------------------- TAREA Firebase --------------------
 void enviarAFirebase(void *parameter) {
   for (;;) {
@@ -50,12 +67,7 @@ void enviarAFirebase(void *parameter) {
       json01.set("VBateria", mVBateria01);
       json01.set("VPaneles", mVPaneles01);
       json01.set("VSalida", mVSalida01);
-
-      if (!Firebase.RTDB.setJSON(&fbdo, "/paneles/panel01", &json01)) {
-        Serial.println("Error al subir Panel01: " + fbdo.errorReason());
-      } else {
-        Serial.println("Datos Panel01 enviados ✅");
-      }
+      Firebase.RTDB.setJSON(&fbdo, "/paneles/panel01", &json01);
 
       // -------- JSON Panel02 --------
       FirebaseJson json02;
@@ -63,12 +75,23 @@ void enviarAFirebase(void *parameter) {
       json02.set("VBateria", mVBateria02);
       json02.set("VPaneles", mVPaneles02);
       json02.set("VSalida", mVSalida02);
+      Firebase.RTDB.setJSON(&fbdo, "/paneles/panel02", &json02);
 
-      if (!Firebase.RTDB.setJSON(&fbdo, "/paneles/panel02", &json02)) {
-        Serial.println("Error al subir Panel02: " + fbdo.errorReason());
-      } else {
-        Serial.println("Datos Panel02 enviados ✅");
-      }
+      // -------- JSON Bombas Grupo01 --------
+      FirebaseJson grupo01;
+      grupo01.set("bomba01", mBomba01);
+      grupo01.set("bomba02", mBomba02);
+      grupo01.set("temp01", mTemp01);
+      Firebase.RTDB.setJSON(&fbdo, "/bombas/grupo01", &grupo01);
+
+      // -------- JSON Bombas Grupo02 --------
+      FirebaseJson grupo02;
+      grupo02.set("bomba03", mBomba03);
+      grupo02.set("bomba04", mBomba04);
+      grupo02.set("temp02", mTemp02);
+      Firebase.RTDB.setJSON(&fbdo, "/bombas/grupo02", &grupo02);
+
+      Serial.println("Datos de bombas y temperaturas enviados ✅");
     }
     vTaskDelay(2000 / portTICK_PERIOD_MS);  // cada 2 segundos
   }
@@ -108,6 +131,12 @@ void setup() {
   setup_WIFI();
   setupFirebase();
 
+  // Configuración pines de bombas como salidas
+  pinMode(bomba01, OUTPUT);
+  pinMode(bomba02, OUTPUT);
+  pinMode(bomba03, OUTPUT);
+  pinMode(bomba04, OUTPUT);
+
   // Crear tarea secundaria para Firebase
   xTaskCreatePinnedToCore(
     enviarAFirebase,    // función de la tarea
@@ -120,7 +149,25 @@ void setup() {
   );
 }
 
-// -------------------- LOOP --------------------
+// --- Función para controlar máximo 2 bombas ---
+void controlarBombas() {
+  int activas = mBomba01 + mBomba02 + mBomba03 + mBomba04;  // cuenta bombas encendidas
+
+  if (activas > 2) {
+    // Si hay más de 2, apagamos la última que quedó activa
+    if (mBomba04) { mBomba04 = false; }
+    else if (mBomba03) { mBomba03 = false; }
+    else if (mBomba02) { mBomba02 = false; }
+    else if (mBomba01) { mBomba01 = false; }
+  }
+
+  // Aplicar estados a pines
+  digitalWrite(bomba01, mBomba01);
+  digitalWrite(bomba02, mBomba02);
+  digitalWrite(bomba03, mBomba03);
+  digitalWrite(bomba04, mBomba04);
+}
+
 void loop() {
   // -------- Lecturas Panel01 --------
   int valCSalida01 = analogRead(CSalidaPin01);
@@ -144,12 +191,20 @@ void loop() {
   mVPaneles02 = map(valVPaneles02, 0, 4095, 0, 300);
   mVSalida02 = map(valVSalida02, 0, 4095, 0, 300);
 
-  // Mostrar en serial
+  // -------- Lecturas Temperaturas --------
+  mTemp01 = map(analogRead(temp01), 0, 4095, 0, 100);
+  mTemp02 = map(analogRead(temp02), 0, 4095, 0, 100);
+
+  // -------- Lógica Bombas (máx. 2 encendidas) --------
+  controlarBombas();
+
+  // -------- Serial Debug --------
   Serial.printf("[PANEL01] CSalida:%d | VBateria:%d | VPaneles:%d | VSalida:%d\n",
                 mCSalida01, mVBateria01, mVPaneles01, mVSalida01);
-
   Serial.printf("[PANEL02] CSalida:%d | VBateria:%d | VPaneles:%d | VSalida:%d\n",
                 mCSalida02, mVBateria02, mVPaneles02, mVSalida02);
+  Serial.printf("[BOMBAS] B1:%d | B2:%d | B3:%d | B4:%d | T1:%d°C | T2:%d°C\n",
+                mBomba01, mBomba02, mBomba03, mBomba04, mTemp01, mTemp02);
 
-  delay(200);  // lectura rápida
+  delay(200);
 }
