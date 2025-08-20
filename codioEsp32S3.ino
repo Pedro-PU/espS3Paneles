@@ -4,8 +4,8 @@
 #include <addons/RTDBHelper.h>
 
 // -------------------- CONFIG WiFi --------------------
-const char* WIFI_SSID = "LASER";
-const char* WIFI_PASSWORD = "raul1975";
+const char* WIFI_SSID = "CNT_GPON_PESANTEZ";
+const char* WIFI_PASSWORD = "Lampara2016";
 
 // -------------------- CONFIG Firebase --------------------
 const char* API_KEY = "AIzaSyD9hEtglkx9Mp3YeGx7cRWvHyu_SWNpWvw";
@@ -23,27 +23,51 @@ const int CSalidaPin01 = 5;
 const int VBateriaPin01 = 6;
 const int VPaneles01 = 7;
 const int VSalida01 = 15;
+const int CSalidaPin02 = 16;
+const int VBateriaPin02 = 8;
+const int VPaneles02 = 3;
+const int VSalida02 = 9;
 
-// Variables globales
-int mCSalida = 0;
-int mVBateria = 0;
-int mVPaneles = 0;
-int mVSalida = 0;
+// -------------------- Variables globales Panel01 --------------------
+int mCSalida01 = 0;
+int mVBateria01 = 0;
+int mVPaneles01 = 0;
+int mVSalida01 = 0;
+
+// -------------------- Variables globales Panel02 --------------------
+int mCSalida02 = 0;
+int mVBateria02 = 0;
+int mVPaneles02 = 0;
+int mVSalida02 = 0;
 
 // -------------------- TAREA Firebase --------------------
 void enviarAFirebase(void *parameter) {
   for (;;) {
     if (Firebase.ready()) {
-      FirebaseJson json;
-      json.set("CSalida", mCSalida);
-      json.set("VBateria", mVBateria);
-      json.set("VPaneles", mVPaneles);
-      json.set("VSalida", mVSalida);
+      // -------- JSON Panel01 --------
+      FirebaseJson json01;
+      json01.set("CSalida", mCSalida01);
+      json01.set("VBateria", mVBateria01);
+      json01.set("VPaneles", mVPaneles01);
+      json01.set("VSalida", mVSalida01);
 
-      if (!Firebase.RTDB.setJSON(&fbdo, "/paneles/panel01", &json)) {
-        Serial.println("Error al subir JSON: " + fbdo.errorReason());
+      if (!Firebase.RTDB.setJSON(&fbdo, "/paneles/panel01", &json01)) {
+        Serial.println("Error al subir Panel01: " + fbdo.errorReason());
       } else {
-        Serial.println("Datos enviados a Firebase ✅");
+        Serial.println("Datos Panel01 enviados ✅");
+      }
+
+      // -------- JSON Panel02 --------
+      FirebaseJson json02;
+      json02.set("CSalida", mCSalida02);
+      json02.set("VBateria", mVBateria02);
+      json02.set("VPaneles", mVPaneles02);
+      json02.set("VSalida", mVSalida02);
+
+      if (!Firebase.RTDB.setJSON(&fbdo, "/paneles/panel02", &json02)) {
+        Serial.println("Error al subir Panel02: " + fbdo.errorReason());
+      } else {
+        Serial.println("Datos Panel02 enviados ✅");
       }
     }
     vTaskDelay(2000 / portTICK_PERIOD_MS);  // cada 2 segundos
@@ -98,20 +122,34 @@ void setup() {
 
 // -------------------- LOOP --------------------
 void loop() {
-  // Leer sensores y mapear a 0-300
-  int valCSalida = analogRead(CSalidaPin01);
-  int valVBateria = analogRead(VBateriaPin01);
-  int valVPaneles = analogRead(VPaneles01);
-  int valVSalida = analogRead(VSalida01);
+  // -------- Lecturas Panel01 --------
+  int valCSalida01 = analogRead(CSalidaPin01);
+  int valVBateria01 = analogRead(VBateriaPin01);
+  int valVPaneles01 = analogRead(VPaneles01);
+  int valVSalida01 = analogRead(VSalida01);
 
-  mCSalida = map(valCSalida, 0, 4095, 0, 300);
-  mVBateria = map(valVBateria, 0, 4095, 0, 260);
-  mVPaneles = map(valVPaneles, 0, 4095, 0, 300);
-  mVSalida = map(valVSalida, 0, 4095, 0, 300);
+  mCSalida01 = map(valCSalida01, 0, 4095, 0, 300);
+  mVBateria01 = map(valVBateria01, 0, 4095, 0, 260);
+  mVPaneles01 = map(valVPaneles01, 0, 4095, 0, 300);
+  mVSalida01 = map(valVSalida01, 0, 4095, 0, 300);
+
+  // -------- Lecturas Panel02 --------
+  int valCSalida02 = analogRead(CSalidaPin02);
+  int valVBateria02 = analogRead(VBateriaPin02);
+  int valVPaneles02 = analogRead(VPaneles02);
+  int valVSalida02 = analogRead(VSalida02);
+
+  mCSalida02 = map(valCSalida02, 0, 4095, 0, 300);
+  mVBateria02 = map(valVBateria02, 0, 4095, 0, 260);
+  mVPaneles02 = map(valVPaneles02, 0, 4095, 0, 300);
+  mVSalida02 = map(valVSalida02, 0, 4095, 0, 300);
 
   // Mostrar en serial
-  Serial.printf("CSalida: %d | VBateria: %d | VPaneles: %d | VSalida: %d\n",
-                mCSalida, mVBateria, mVPaneles, mVSalida);
+  Serial.printf("[PANEL01] CSalida:%d | VBateria:%d | VPaneles:%d | VSalida:%d\n",
+                mCSalida01, mVBateria01, mVPaneles01, mVSalida01);
+
+  Serial.printf("[PANEL02] CSalida:%d | VBateria:%d | VPaneles:%d | VSalida:%d\n",
+                mCSalida02, mVBateria02, mVPaneles02, mVSalida02);
 
   delay(200);  // lectura rápida
 }
