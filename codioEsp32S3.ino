@@ -4,8 +4,8 @@
 #include <addons/RTDBHelper.h>
 
 // -------------------- CONFIG WiFi --------------------
-const char* WIFI_SSID = "CNT_GPON_PESANTEZ";
-const char* WIFI_PASSWORD = "Lampara2016";
+const char* WIFI_SSID = "LASER";
+const char* WIFI_PASSWORD = "raul1975";
 
 // -------------------- CONFIG Firebase --------------------
 const char* API_KEY = "AIzaSyD9hEtglkx9Mp3YeGx7cRWvHyu_SWNpWvw";
@@ -61,6 +61,13 @@ int mVBateria02 = 0;
 int mVPaneles02 = 0;
 int mVSalida02 = 0;
 
+// Variables de estados anteriores (para comparación)
+bool prevBomba01 = false;
+bool prevBomba02 = false;
+bool prevBomba03 = false;
+bool prevBomba04 = false;
+
+
 void actualizarBombas() {
   int activas = estadoBomba01 + estadoBomba02 + estadoBomba03 + estadoBomba04;
 
@@ -87,7 +94,7 @@ void enviarAFirebase(void *parameter) {
         bool nuevoB02 = estadoBomba02;
         bool nuevoB03 = estadoBomba03;
         bool nuevoB04 = estadoBomba04;
-
+        
         if (Firebase.RTDB.getBool(&fbdo, "/bombas/grupo01/bomba01")) 
             nuevoB01 = fbdo.boolData();
         if (Firebase.RTDB.getBool(&fbdo, "/bombas/grupo01/bomba02")) 
@@ -141,24 +148,16 @@ void enviarAFirebase(void *parameter) {
             Serial.println("Datos Panel02 enviados ✅");
         }
 
-        // -------- JSON Grupo01 --------
-        FirebaseJson jsonGrupo01;
-        jsonGrupo01.set("bomba01", estadoBomba01);
-        jsonGrupo01.set("bomba02", estadoBomba02);
-        jsonGrupo01.set("temp01", temperatura01);
-
-        if (!Firebase.RTDB.updateNode(&fbdo, "/bombas/grupo01", &jsonGrupo01)) {
-            Serial.println("Error al actualizar Grupo01: " + fbdo.errorReason());
+        FirebaseJson jsonTemp01;
+        jsonTemp01.set("temp01", temperatura01);
+        if (!Firebase.RTDB.updateNode(&fbdo, "/bombas/grupo01", &jsonTemp01)) {
+          Serial.println("Error al subir temp01: " + fbdo.errorReason());
         }
 
-        // -------- JSON Grupo02 --------
-        FirebaseJson jsonGrupo02;
-        jsonGrupo02.set("bomba03", estadoBomba03);
-        jsonGrupo02.set("bomba04", estadoBomba04);
-        jsonGrupo02.set("temp02", temperatura02);
-
-        if (!Firebase.RTDB.updateNode(&fbdo, "/bombas/grupo02", &jsonGrupo02)) {
-            Serial.println("Error al actualizar Grupo02: " + fbdo.errorReason());
+        FirebaseJson jsonTemp02;
+        jsonTemp02.set("temp02", temperatura02);
+        if (!Firebase.RTDB.updateNode(&fbdo, "/bombas/grupo02", &jsonTemp02)) {
+          Serial.println("Error al subir temp02: " + fbdo.errorReason());
         }
     }
     vTaskDelay(2000 / portTICK_PERIOD_MS);  // cada 2 segundos
