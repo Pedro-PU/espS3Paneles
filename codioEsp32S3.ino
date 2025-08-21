@@ -61,54 +61,105 @@ int mVBateria02 = 0;
 int mVPaneles02 = 0;
 int mVSalida02 = 0;
 
+void actualizarBombas() {
+  int activas = estadoBomba01 + estadoBomba02 + estadoBomba03 + estadoBomba04;
+
+  if (activas > 2) {
+    if (estadoBomba03 && activas > 2) { estadoBomba03 = false; activas--; }
+    if (estadoBomba04 && activas > 2) { estadoBomba04 = false; activas--; }
+    if (estadoBomba02 && activas > 2) { estadoBomba02 = false; activas--; }
+    if (estadoBomba01 && activas > 2) { estadoBomba01 = false; activas--; }
+  }
+
+  digitalWrite(bomba01, estadoBomba01 ? HIGH : LOW);
+  digitalWrite(bomba02, estadoBomba02 ? HIGH : LOW);
+  digitalWrite(bomba03, estadoBomba03 ? HIGH : LOW);
+  digitalWrite(bomba04, estadoBomba04 ? HIGH : LOW);
+}
+
 // -------------------- TAREA Firebase --------------------
 void enviarAFirebase(void *parameter) {
   for (;;) {
     if (Firebase.ready()) {
-      // -------- JSON Panel01 --------
-      FirebaseJson json01;
-      json01.set("CSalida", mCSalida01);
-      json01.set("VBateria", mVBateria01);
-      json01.set("VPaneles", mVPaneles01);
-      json01.set("VSalida", mVSalida01);
 
-      if (!Firebase.RTDB.setJSON(&fbdo, "/paneles/panel01", &json01)) {
-        Serial.println("Error al subir Panel01: " + fbdo.errorReason());
-      } else {
-        Serial.println("Datos Panel01 enviados ✅");
-      }
+        // --- LEER BOMBAS DESDE FIREBASE ---
+        bool nuevoB01 = estadoBomba01;
+        bool nuevoB02 = estadoBomba02;
+        bool nuevoB03 = estadoBomba03;
+        bool nuevoB04 = estadoBomba04;
 
-      // -------- JSON Panel02 --------
-      FirebaseJson json02;
-      json02.set("CSalida", mCSalida02);
-      json02.set("VBateria", mVBateria02);
-      json02.set("VPaneles", mVPaneles02);
-      json02.set("VSalida", mVSalida02);
+        if (Firebase.RTDB.getBool(&fbdo, "/bombas/grupo01/bomba01")) 
+            nuevoB01 = fbdo.boolData();
+        if (Firebase.RTDB.getBool(&fbdo, "/bombas/grupo01/bomba02")) 
+            nuevoB02 = fbdo.boolData();
+        if (Firebase.RTDB.getBool(&fbdo, "/bombas/grupo02/bomba03")) 
+            nuevoB03 = fbdo.boolData();
+        if (Firebase.RTDB.getBool(&fbdo, "/bombas/grupo02/bomba04")) 
+            nuevoB04 = fbdo.boolData();
 
-      if (!Firebase.RTDB.setJSON(&fbdo, "/paneles/panel02", &json02)) {
-        Serial.println("Error al subir Panel02: " + fbdo.errorReason());
-      } else {
-        Serial.println("Datos Panel02 enviados ✅");
-      }
+        // --- ACTUALIZAR PINES SOLO SI CAMBIO ---
+        if (nuevoB01 != estadoBomba01) {
+            estadoBomba01 = nuevoB01;
+            digitalWrite(bomba01, estadoBomba01 ? HIGH : LOW);
+        }
+        if (nuevoB02 != estadoBomba02) {
+            estadoBomba02 = nuevoB02;
+            digitalWrite(bomba02, estadoBomba02 ? HIGH : LOW);
+        }
+        if (nuevoB03 != estadoBomba03) {
+            estadoBomba03 = nuevoB03;
+            digitalWrite(bomba03, estadoBomba03 ? HIGH : LOW);
+        }
+        if (nuevoB04 != estadoBomba04) {
+            estadoBomba04 = nuevoB04;
+            digitalWrite(bomba04, estadoBomba04 ? HIGH : LOW);
+        }
 
-      FirebaseJson jsonGrupo01;
-      jsonGrupo01.set("bomba01", estadoBomba01);
-      jsonGrupo01.set("bomba02", estadoBomba02);
-      jsonGrupo01.set("temp01", temperatura01);
+        // -------- JSON Panel01 --------
+        FirebaseJson json01;
+        json01.set("CSalida", mCSalida01);
+        json01.set("VBateria", mVBateria01);
+        json01.set("VPaneles", mVPaneles01);
+        json01.set("VSalida", mVSalida01);
 
-      if (!Firebase.RTDB.setJSON(&fbdo, "/bombas/grupo01", &jsonGrupo01)) {
-        Serial.println("Error al enviar Grupo01: " + fbdo.errorReason());
-      }
+        if (!Firebase.RTDB.setJSON(&fbdo, "/paneles/panel01", &json01)) {
+            Serial.println("Error al subir Panel01: " + fbdo.errorReason());
+        } else {
+            Serial.println("Datos Panel01 enviados ✅");
+        }
 
-      FirebaseJson jsonGrupo02;
-      jsonGrupo02.set("bomba03", estadoBomba03);
-      jsonGrupo02.set("bomba04", estadoBomba04);
-      jsonGrupo02.set("temp02", temperatura02);
+        // -------- JSON Panel02 --------
+        FirebaseJson json02;
+        json02.set("CSalida", mCSalida02);
+        json02.set("VBateria", mVBateria02);
+        json02.set("VPaneles", mVPaneles02);
+        json02.set("VSalida", mVSalida02);
 
-      if (!Firebase.RTDB.setJSON(&fbdo, "/bombas/grupo02", &jsonGrupo02)) {
-        Serial.println("Error al enviar Grupo02: " + fbdo.errorReason());
-      }
+        if (!Firebase.RTDB.setJSON(&fbdo, "/paneles/panel02", &json02)) {
+            Serial.println("Error al subir Panel02: " + fbdo.errorReason());
+        } else {
+            Serial.println("Datos Panel02 enviados ✅");
+        }
 
+        // -------- JSON Grupo01 --------
+        FirebaseJson jsonGrupo01;
+        jsonGrupo01.set("bomba01", estadoBomba01);
+        jsonGrupo01.set("bomba02", estadoBomba02);
+        jsonGrupo01.set("temp01", temperatura01);
+
+        if (!Firebase.RTDB.updateNode(&fbdo, "/bombas/grupo01", &jsonGrupo01)) {
+            Serial.println("Error al actualizar Grupo01: " + fbdo.errorReason());
+        }
+
+        // -------- JSON Grupo02 --------
+        FirebaseJson jsonGrupo02;
+        jsonGrupo02.set("bomba03", estadoBomba03);
+        jsonGrupo02.set("bomba04", estadoBomba04);
+        jsonGrupo02.set("temp02", temperatura02);
+
+        if (!Firebase.RTDB.updateNode(&fbdo, "/bombas/grupo02", &jsonGrupo02)) {
+            Serial.println("Error al actualizar Grupo02: " + fbdo.errorReason());
+        }
     }
     vTaskDelay(2000 / portTICK_PERIOD_MS);  // cada 2 segundos
   }
@@ -141,32 +192,6 @@ void setupFirebase() {
   Serial.printf("Firebase Client v%s\n\n", FIREBASE_CLIENT_VERSION);
 }
 
-void leerBombas() {
-  // Leer pines
-  bool b01 = digitalRead(bomba01);
-  bool b02 = digitalRead(bomba02);
-  bool b03 = digitalRead(bomba03);
-  bool b04 = digitalRead(bomba04);
-
-  // Contar cuántas están activas
-  int activas = b01 + b02 + b03 + b04;
-
-  // Si hay más de 2, apagar las últimas hasta cumplir el límite
-  if (activas > 2) {
-    // Prioridad: mantener activas b01 y b02 primero
-    if (b03 && activas > 2) { b03 = false; activas--; }
-    if (b04 && activas > 2) { b04 = false; activas--; }
-    if (b02 && activas > 2) { b02 = false; activas--; }
-    if (b01 && activas > 2) { b01 = false; activas--; }
-  }
-
-  // Guardar en variables globales
-  estadoBomba01 = b01;
-  estadoBomba02 = b02;
-  estadoBomba03 = b03;
-  estadoBomba04 = b04;
-}
-
 void leerTemperaturas() {
   int valTemp01 = analogRead(temp01Pin);
   int valTemp02 = analogRead(temp02Pin);
@@ -177,10 +202,10 @@ void leerTemperaturas() {
 
 // -------------------- SETUP --------------------
 void setup() {
-  pinMode(bomba01, INPUT);
-  pinMode(bomba02, INPUT);
-  pinMode(bomba03, INPUT);
-  pinMode(bomba04, INPUT);
+  pinMode(bomba01, OUTPUT);
+  pinMode(bomba02, OUTPUT);
+  pinMode(bomba03, OUTPUT);
+  pinMode(bomba04, OUTPUT);
 
   Serial.begin(115200);
   
@@ -218,13 +243,13 @@ void loop() {
   int valVPaneles02 = analogRead(VPaneles02);
   int valVSalida02 = analogRead(VSalida02);
 
-  mCSalida02 = map(valCSalida02, 0, 4095, 0, 300);
+  mCSalida02 = map(valCSalida02, 0, 4095, 0, 300);  
   mVBateria02 = map(valVBateria02, 0, 4095, 0, 260);
   mVPaneles02 = map(valVPaneles02, 0, 4095, 0, 300);
   mVSalida02 = map(valVSalida02, 0, 4095, 0, 300);
 
   // Nueva lectura bombas y temperatura
-  leerBombas();
+  actualizarBombas();
   leerTemperaturas();
 
   // Mostrar por Serial
