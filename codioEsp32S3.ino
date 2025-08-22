@@ -4,8 +4,8 @@
 #include <addons/RTDBHelper.h>
 
 // -------------------- CONFIG WiFi --------------------
-const char* WIFI_SSID = "LASER";
-const char* WIFI_PASSWORD = "raul1975";
+const char* WIFI_SSID = "CNT_GPON_PESANTEZ";
+const char* WIFI_PASSWORD = "Lampara2016";
 
 // -------------------- CONFIG Firebase --------------------
 const char* API_KEY = "AIzaSyD9hEtglkx9Mp3YeGx7cRWvHyu_SWNpWvw";
@@ -75,8 +75,12 @@ bool bombasDirty = false;        // marcar cuando haya que subir el estado de bo
 unsigned long lastSyncMs = 0;    // rate-limit para Firebase
 const unsigned long SYNC_INTERVAL_MS = 2000;
 
+//Estado de bombas en el ciclo
+bool enCambioFuente = false;
+
 // -------------------- Helpers --------------------
 void actualizarBombas() {
+  if (enCambioFuente) return;
   int activas = (estadoBomba01 ? 1:0) + (estadoBomba02 ? 1:0) + (estadoBomba03 ? 1:0) + (estadoBomba04 ? 1:0);
 
   if (activas > 2) {
@@ -95,6 +99,7 @@ void actualizarBombas() {
 }
 
 void cambiarFuenteEnergia(bool usarSolar) {
+  enCambioFuente = true;  // BLOQUEAR control de bombas
   // Guardar estado previo de bombas
   bombasPrevias[0] = estadoBomba01;
   bombasPrevias[1] = estadoBomba02;
@@ -106,8 +111,12 @@ void cambiarFuenteEnergia(bool usarSolar) {
   estadoBomba02 = false;
   estadoBomba03 = false;
   estadoBomba04 = false;
-  actualizarBombas(); // marca dirty
-  pushBombas();//aquí se apagan
+  digitalWrite(bomba01, LOW);
+  digitalWrite(bomba02, LOW);
+  digitalWrite(bomba03, LOW);
+  digitalWrite(bomba04, LOW);
+  //actualizarBombas(); // marca dirty
+  //pushBombas();//aquí se apagan
 
   delay(5000); // esperar 5s
 
@@ -131,8 +140,13 @@ void cambiarFuenteEnergia(bool usarSolar) {
   estadoBomba02 = bombasPrevias[1];
   estadoBomba03 = bombasPrevias[2];
   estadoBomba04 = bombasPrevias[3];
-  actualizarBombas(); // marca dirty
-  pushBombas();//aquí se encienden las que estaban antes
+  digitalWrite(bomba01, estadoBomba01 ? HIGH : LOW);
+  digitalWrite(bomba02, estadoBomba02 ? HIGH : LOW);
+  digitalWrite(bomba03, estadoBomba03 ? HIGH : LOW);
+  digitalWrite(bomba04, estadoBomba04 ? HIGH : LOW);
+  //actualizarBombas(); // marca dirty
+  //pushBombas();//aquí se encienden las que estaban antes
+  enCambioFuente = false; // DESBLOQUEAR control normal
 }
 
 void leerTemperaturas() {
@@ -143,7 +157,6 @@ void leerTemperaturas() {
   temperatura02 = map(valTemp02, 0, 4095, 0, 100);
 }
 
-// ========================= MÉTODOS Firebase (SIN TAREAS) =========================
 // ---- Lectura de órdenes remotas de bombas ----
 void syncBombasDesdeFirebase() {
   if (!Firebase.ready()) return;
@@ -211,7 +224,7 @@ void pushEnergia() {
     Serial.println("Error al subir energia: " + fbdo.errorReason());
 }
 
-void pushBombas() {
+/* void pushBombas() {
   if (!Firebase.ready()) return;
 
   // grupo01: bombas 1 y 2
@@ -227,7 +240,7 @@ void pushBombas() {
   g2.set("bomba04", estadoBomba04);
   if (!Firebase.RTDB.updateNode(&fbdo, "/bombas/grupo02", &g2))
     Serial.println("Error al subir bombas G2: " + fbdo.errorReason());
-}
+} */
 
 // -------------------- WiFi --------------------
 void setup_WIFI() {
@@ -299,7 +312,7 @@ void setup() {
   xTaskCreatePinnedToCore(
     enviarAFirebase,    // función de la tarea
     "FirebaseTask",     // nombre de la tarea
-    4096,               // stack en bytes
+    8192,               // stack en bytes
     NULL,               // parámetro
     1,                  // prioridad
     NULL,               // handle
