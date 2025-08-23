@@ -2,6 +2,7 @@
 #include <Firebase_ESP_Client.h>
 #include <addons/TokenHelper.h>
 #include <addons/RTDBHelper.h>
+#include <time.h>
 
 // -------------------- CONFIG WiFi --------------------
 const char* WIFI_SSID = "CNT_GPON_PESANTEZ";
@@ -78,6 +79,12 @@ const unsigned long SYNC_INTERVAL_MS = 2000;
 //Estado de bombas en el ciclo
 bool enCambioFuente = false;
 
+//-------------------- Tiempo ----------------------
+unsigned long lastMensajeMs = 0;
+const unsigned long INTERVALO_MENSAJE_MS = 120000; // 1 hora en ms - 3600000
+int contadorMensajes01 = 1;
+int contadorMensajes02 = 1;
+
 // -------------------- Helpers --------------------
 void actualizarBombas() {
   if (enCambioFuente) return;
@@ -115,8 +122,6 @@ void cambiarFuenteEnergia(bool usarSolar) {
   digitalWrite(bomba02, LOW);
   digitalWrite(bomba03, LOW);
   digitalWrite(bomba04, LOW);
-  //actualizarBombas(); // marca dirty
-  //pushBombas();//aquí se apagan
 
   delay(5000); // esperar 5s
 
@@ -144,8 +149,6 @@ void cambiarFuenteEnergia(bool usarSolar) {
   digitalWrite(bomba02, estadoBomba02 ? HIGH : LOW);
   digitalWrite(bomba03, estadoBomba03 ? HIGH : LOW);
   digitalWrite(bomba04, estadoBomba04 ? HIGH : LOW);
-  //actualizarBombas(); // marca dirty
-  //pushBombas();//aquí se encienden las que estaban antes
   enCambioFuente = false; // DESBLOQUEAR control normal
 }
 
@@ -224,23 +227,50 @@ void pushEnergia() {
     Serial.println("Error al subir energia: " + fbdo.errorReason());
 }
 
-/* void pushBombas() {
+void pushMensajePaneles() {
   if (!Firebase.ready()) return;
 
-  // grupo01: bombas 1 y 2
-  FirebaseJson g1;
-  g1.set("bomba01", estadoBomba01);
-  g1.set("bomba02", estadoBomba02);
-  if (!Firebase.RTDB.updateNode(&fbdo, "/bombas/grupo01", &g1))
-    Serial.println("Error al subir bombas G1: " + fbdo.errorReason());
+  // Obtener hora actual
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("Error al obtener hora");
+    return;
+  }
 
-  // grupo02: bombas 3 y 4
-  FirebaseJson g2;
-  g2.set("bomba03", estadoBomba03);
-  g2.set("bomba04", estadoBomba04);
-  if (!Firebase.RTDB.updateNode(&fbdo, "/bombas/grupo02", &g2))
-    Serial.println("Error al subir bombas G2: " + fbdo.errorReason());
-} */
+  char fecha[12];
+  char hora[10];
+  strftime(fecha, sizeof(fecha), "%d/%m/%y", &timeinfo);
+  strftime(hora, sizeof(hora), "%H:%M", &timeinfo);
+
+  // -------- Panel01 --------
+  String ruta01 = "/datos/panel01/mensaje" + String(contadorMensajes01);
+  FirebaseJson msg01;
+  msg01.set("CSalida", mCSalida01);
+  msg01.set("VSalida", mVSalida01);
+  msg01.set("dia", fecha);
+  msg01.set("hora", hora);
+  if (Firebase.RTDB.setJSON(&fbdo, ruta01.c_str(), &msg01)) {
+    Serial.println("Mensaje Panel01 enviado: " + ruta01);
+    contadorMensajes01++;
+  } else {
+    Serial.println("Error Panel01: " + fbdo.errorReason());
+  }
+
+  // -------- Panel02 --------
+  String ruta02 = "/datos/panel02/mensaje" + String(contadorMensajes02);
+  FirebaseJson msg02;
+  msg02.set("CSalida", mCSalida02);
+  msg02.set("VSalida", mVSalida02);
+  msg02.set("dia", fecha);
+  msg02.set("hora", hora);
+  if (Firebase.RTDB.setJSON(&fbdo, ruta02.c_str(), &msg02)) {
+    Serial.println("Mensaje Panel02 enviado: " + ruta02);
+    contadorMensajes02++;
+  } else {
+    Serial.println("Error Panel02: " + fbdo.errorReason());
+  }
+}
+
 
 // -------------------- WiFi --------------------
 void setup_WIFI() {
@@ -253,6 +283,14 @@ void setup_WIFI() {
   Serial.println();
   Serial.print("Conectado con IP: ");
   Serial.println(WiFi.localIP());
+  
+  configTime(-5 * 3600, 0, "pool.ntp.org");  // UTC-5 Ecuador
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("Error al obtener hora NTP");
+  } else {
+    Serial.println(&timeinfo, "Hora sincronizada: %d/%m/%Y %H:%M:%S");
+  }
 }
 
 // -------------------- Firebase --------------------
@@ -279,6 +317,12 @@ void enviarAFirebase(void *parameter) {
       pushPaneles();
       pushTemperaturas();
       pushEnergia();
+
+      // Tiempo
+      if (millis() - lastMensajeMs >= INTERVALO_MENSAJE_MS) {
+        pushMensajePaneles();
+        lastMensajeMs = millis();
+      }
     }
     vTaskDelay(2000 / portTICK_PERIOD_MS); // esperar 2s
   }
